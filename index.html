@@ -1,0 +1,2206 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>وصّلني - تطبيق التوصيل والمشاوير المحلي</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Cairo & Tajawal -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Cairo', 'Tajawal', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            dark: '#0f172a',
+                            primary: '#f59e0b', // Amber 500
+                            primaryHover: '#d97706', // Amber 600
+                            accent: '#10b981', // Emerald 500
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        .pulse-dot {
+            animation: pulse-ring 1.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+        @keyframes pulse-ring {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+    </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Toast Notification Banner (Replaces alert) -->
+    <div id="toast-container" class="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 w-11/12 max-w-md pointer-events-none flex flex-col gap-2"></div>
+
+    <!-- Top Navigation & Role Switcher -->
+    <header class="bg-slate-900 text-white sticky top-0 z-40 shadow-lg">
+        <div class="max-w-3xl mx-auto px-4 py-3">
+            <div class="flex items-center justify-between gap-2">
+                <!-- App Brand -->
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-900 flex items-center justify-center text-xl font-extrabold shadow-md">
+                        <i class="fa-solid fa-motorcycle"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-lg font-extrabold tracking-tight leading-none text-white">وصّلني <span class="text-amber-400">بلدنا</span></h1>
+                        <p class="text-[11px] text-slate-400 mt-0.5">دليفري ومشاوير سريعة بالمنطقة</p>
+                    </div>
+                </div>
+
+                <!-- Role Switcher Pill -->
+                <div class="bg-slate-800 p-1 rounded-xl flex items-center border border-slate-700 gap-1">
+                    <button id="btn-role-customer" onclick="switchRole('customer')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 bg-amber-500 text-slate-900 shadow">
+                        <i class="fa-solid fa-user"></i>
+                        <span>الزبون</span>
+                    </button>
+                    <button id="btn-role-driver" onclick="switchRole('driver')" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 text-slate-300 hover:text-white relative">
+                        <i class="fa-solid fa-helmet-safety"></i>
+                        <span>السائق</span>
+                        <span id="pending-badge" class="hidden bg-emerald-500 text-white text-[10px] font-extrabold px-1.5 py-0.2 rounded-full">0</span>
+                    </button>
+                    <button id="btn-role-admin" onclick="switchRole('admin')" title="لوحة الإدارة" class="px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1 text-slate-400 hover:text-amber-400">
+                        <i class="fa-solid fa-gear"></i>
+                        <span class="hidden sm:inline">الإدارة</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-3xl w-full mx-auto px-4 py-5 pb-24">
+
+        <!-- ========================================== -->
+        <!-- 1. CUSTOMER VIEW (واجهة الزبون / طالب الخدمة) -->
+        <!-- ========================================== -->
+        <section id="view-customer" class="space-y-6">
+            
+            <!-- Active Customer Order Tracker (Visible if customer has active orders) -->
+            <div id="customer-active-orders" class="space-y-4"></div>
+
+            <!-- Order Creation Card -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <!-- Service Type Tabs -->
+                <div class="grid grid-cols-2 bg-slate-100 p-1.5 gap-1.5 border-b border-slate-200">
+                    <button type="button" id="tab-delivery" onclick="setServiceType('delivery')" class="py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-white text-slate-900 shadow-sm border border-slate-200/60">
+                        <i class="fa-solid fa-box-open text-amber-500 text-base"></i>
+                        <span>توصيل طلب / أغراض</span>
+                    </button>
+                    <button type="button" id="tab-ride" onclick="setServiceType('ride')" class="py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700">
+                        <i class="fa-solid fa-person-walking-luggage text-emerald-600 text-base"></i>
+                        <span>مشوار ركاب</span>
+                    </button>
+                </div>
+
+                <!-- Order Form -->
+                <form id="order-form" onsubmit="handleCreateOrder(event)" class="p-5 space-y-4">
+                    
+                    <!-- Vehicle Selection -->
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">اختر وسيلة النقل المناسبة</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="vehicle" value="motorcycle" class="peer sr-only" checked onchange="updateEstimatedFare()">
+                                <div class="p-3.5 rounded-xl border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50/50 transition-all flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center text-lg shrink-0">
+                                        <i class="fa-solid fa-motorcycle"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm text-slate-900">موتوسيكل</div>
+                                        <div class="text-[11px] text-slate-500">سريع للطلبات الخفيفة وفرد واحد</div>
+                                    </div>
+                                </div>
+                            </label>
+
+                            <label class="cursor-pointer">
+                                <input type="radio" name="vehicle" value="tuktuk" class="peer sr-only" onchange="updateEstimatedFare()">
+                                <div class="p-3.5 rounded-xl border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50/50 transition-all flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-lg shrink-0">
+                                        <i class="fa-solid fa-shuttle-van"></i>
+                                    </div>
+                                    <div>
+                                        <div class="font-bold text-sm text-slate-900">تكتوك</div>
+                                        <div class="text-[11px] text-slate-500">للعائلات، الغاز، والأغراض الكبيرة</div>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Pickup & Dropoff Locations -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                            <label id="label-pickup" class="block text-sm font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-store text-amber-500 ml-1"></i> من أين نستلم الطلب؟ (المحل/المكان)
+                            </label>
+                            <input type="text" id="input-pickup" required placeholder="مثال: سوبرماركت البركة / الساحة" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all">
+                        </div>
+
+                        <div>
+                            <label id="label-dropoff" class="block text-sm font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-location-dot text-emerald-600 ml-1"></i> إلى أين التوصيل؟ (الحي/المنزل)
+                            </label>
+                            <input type="text" id="input-dropoff" required placeholder="مثال: الحي الغربي - قرب المسجد" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all">
+                        </div>
+                    </div>
+
+                    <!-- Order Details / Notes -->
+                    <div>
+                        <label id="label-details" class="block text-sm font-bold text-slate-700 mb-1">
+                            <i class="fa-solid fa-list-check text-slate-500 ml-1"></i> تفاصيل الطلب أو الأغراض المطلوبة
+                        </label>
+                        <textarea id="input-details" rows="2" required placeholder="اكتب قائمة الأغراض هنا (مثلاً: ربطة خبز، قنينة غاز، دواء من الصيدلية) أو عدد الركاب..." class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all"></textarea>
+                    </div>
+
+                    <!-- Customer Info -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">
+                                <i class="fa-solid fa-user text-slate-400 ml-1"></i> اسمك الكريم
+                            </label>
+                            <input type="text" id="input-name" required placeholder="مثال: أبو محمد" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm transition-all">
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">
+                                <i class="fa-brands fa-whatsapp text-emerald-500 ml-1"></i> رقم الهاتف / واتساب
+                            </label>
+                            <input type="tel" id="input-phone" required placeholder="مثال: 70123456" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm text-left" dir="ltr">
+                        </div>
+                    </div>
+
+                    <!-- Distance / Fare Estimator -->
+                    <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                            <span class="text-xs font-bold text-slate-500 block">نطاق المسافة داخل المنطقة:</span>
+                            <select id="select-distance" onchange="updateEstimatedFare()" class="mt-1 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-sm font-bold text-slate-700 outline-none focus:border-amber-500">
+                                <option value="near">قريب (داخل نفس الحي)</option>
+                                <option value="medium" selected>متوسط (من السوق إلى الأحياء)</option>
+                                <option value="far">بعيد (أطراف المنطقة / مزارع)</option>
+                            </select>
+                        </div>
+                        <div class="text-right sm:text-left bg-white px-4 py-2 rounded-xl border border-slate-200/80 shadow-xs">
+                            <span class="text-[11px] text-slate-500 block">أجرة التوصيل التقديرية</span>
+                            <div class="flex items-baseline gap-2">
+                                <span id="fare-display" class="text-lg font-extrabold text-emerald-600">150,000 ل.ل</span>
+                                <span id="fare-usd-display" class="text-xs font-bold text-slate-400">(~1.7$)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-[0.99] text-slate-900 font-extrabold text-base shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-paper-plane"></i>
+                        <span>اطلب الآن وأرسله للسائقين</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Quick Local Presets (To encourage orders) -->
+            <div>
+                <h3 class="text-sm font-bold text-slate-600 mb-2.5 flex items-center gap-1.5">
+                    <i class="fa-solid fa-bolt text-amber-500"></i> طلبات سريعة شائعة في منطقتنا:
+                </h3>
+                <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <button type="button" onclick="fillPreset('delivery', 'tuktuk', 'مستودع الغاز الرئيسي', 'المنزل', 'تبديل جرة غاز منزلية', 'medium')" class="p-3 bg-white hover:bg-amber-50 border border-slate-200 rounded-xl text-right transition-all flex items-center gap-2.5 shadow-2xs">
+                        <span class="w-8 h-8 rounded-lg bg-orange-100 text-orange-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-fire-flame-simple"></i></span>
+                        <div>
+                            <div class="text-xs font-bold text-slate-800">جرة غاز (تكتوك)</div>
+                            <div class="text-[10px] text-slate-500">توصيل لباب البيت</div>
+                        </div>
+                    </button>
+                    <button type="button" onclick="fillPreset('delivery', 'motorcycle', 'الصيدلية المناوبة', 'المنزل', 'جلب دواء من الصيدلية', 'medium')" class="p-3 bg-white hover:bg-amber-50 border border-slate-200 rounded-xl text-right transition-all flex items-center gap-2.5 shadow-2xs">
+                        <span class="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-pills"></i></span>
+                        <div>
+                            <div class="text-xs font-bold text-slate-800">طلب صيدلية</div>
+                            <div class="text-[10px] text-slate-500">دليفري سريع</div>
+                        </div>
+                    </button>
+                    <button type="button" onclick="fillPreset('ride', 'tuktuk', 'المنزل', 'السوق الرئيسي / الساحة', 'مشوار ذهاب إلى السوق (شخصين)', 'medium')" class="p-3 bg-white hover:bg-amber-50 border border-slate-200 rounded-xl text-right transition-all flex items-center gap-2.5 shadow-2xs col-span-2 sm:col-span-1">
+                        <span class="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center shrink-0"><i class="fa-solid fa-shuttle-van"></i></span>
+                        <div>
+                            <div class="text-xs font-bold text-slate-800">مشوار للسوق</div>
+                            <div class="text-[10px] text-slate-500">تكتوك مريح</div>
+                        </div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Recent Public Orders Feed in Region -->
+            <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 space-y-3">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
+                        <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> حركة الطلبات الأخيرة في المنطقة
+                    </h3>
+                    <span class="text-[11px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-bold">مباشر</span>
+                </div>
+                <div id="customer-recent-feed" class="divide-y divide-slate-100"></div>
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 2. DRIVER VIEW (واجهة السائق / الكابتن)     -->
+        <!-- ========================================== -->
+        <section id="view-driver" class="hidden space-y-5">
+
+            <!-- Driver Registration / Login Gate (Shown when no driver is logged in) -->
+            <div id="driver-auth-box" class="bg-white rounded-2xl p-5 sm:p-6 shadow-sm border border-slate-200 max-w-lg mx-auto space-y-5">
+                <div class="text-center space-y-2">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-500 text-slate-900 flex items-center justify-center text-2xl mx-auto shadow">
+                        <i class="fa-solid fa-id-card-clip"></i>
+                    </div>
+                    <h2 class="text-lg font-extrabold text-slate-900">تسجيل السائقين الجدد / الدخول</h2>
+                    <p class="text-xs text-slate-500">سجّل بياناتك الآن وابدأ باستقبال طلبات المنطقة مع <strong>3 أيام تجربة مجانية</strong>، وبعدها الاشتراك الرمزي <strong>1$ شهرياً</strong> فقط.</p>
+                </div>
+
+                <!-- Switch between New Driver Registration and Existing Driver Login -->
+                <div id="driver-existing-login-section" class="hidden bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2.5">
+                    <label class="block text-xs font-extrabold text-slate-700">لديك حساب مسجل على هذا الجهاز؟ اختر اسمك للدخول:</label>
+                    <div class="flex gap-2">
+                        <select id="select-existing-driver" class="flex-1 px-3 py-2 rounded-xl border border-slate-300 bg-white text-sm font-bold text-slate-800 outline-none focus:border-amber-500"></select>
+                        <button type="button" onclick="handleExistingDriverLogin()" class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold transition-all">
+                            دخول
+                        </button>
+                    </div>
+                </div>
+
+                <form id="driver-register-form" onsubmit="handleDriverRegister(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                            <i class="fa-solid fa-user text-amber-500 ml-1"></i> الاسم الكامل أو الكنية المعروفة في المنطقة
+                        </label>
+                        <input type="text" id="reg-driver-name" required placeholder="أدخل اسمك الكامل" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                            <i class="fa-brands fa-whatsapp text-emerald-500 ml-1"></i> رقم الهاتف / واتساب للتواصل مع الزبائن
+                        </label>
+                        <input type="tel" id="reg-driver-phone" required placeholder="أدخل رقم هاتفك (مثال: 70xxxxxx)" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm text-left" dir="ltr">
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1.5">نوع المركبة التي تعمل عليها:</label>
+                        <div class="grid grid-cols-2 gap-3">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="reg-vehicle" value="motorcycle" class="peer sr-only" checked>
+                                <div class="p-3 rounded-xl border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50/60 transition-all flex items-center gap-2.5">
+                                    <i class="fa-solid fa-motorcycle text-amber-600 text-lg"></i>
+                                    <span class="font-bold text-sm text-slate-900">موتوسيكل</span>
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="reg-vehicle" value="tuktuk" class="peer sr-only">
+                                <div class="p-3 rounded-xl border-2 border-slate-200 peer-checked:border-amber-500 peer-checked:bg-amber-50/60 transition-all flex items-center gap-2.5">
+                                    <i class="fa-solid fa-shuttle-van text-emerald-600 text-lg"></i>
+                                    <span class="font-bold text-sm text-slate-900">تكتوك</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">
+                            <i class="fa-solid fa-hashtag text-slate-400 ml-1"></i> رقم اللوحة أو وصف المركبة (اللون / الموديل)
+                        </label>
+                        <input type="text" id="reg-driver-plate" required placeholder="مثال: موتوسيكل أحمر أو رقم اللوحة" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm">
+                    </div>
+
+                    <button type="submit" class="w-full py-3.5 px-6 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold text-sm shadow-md transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-user-check"></i>
+                        <span>إتمام التسجيل وبدء العمل (3 أيام مجاناً)</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Authenticated Driver Main Dashboard -->
+            <div id="driver-main-dashboard" class="hidden space-y-5">
+            
+            <!-- Subscription Status Card (1$ Monthly System) -->
+            <div id="driver-subscription-card" class="rounded-2xl p-4 border-2 transition-all shadow-xs bg-white border-emerald-500/40">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div id="sub-icon-box" class="w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0">
+                            <i class="fa-solid fa-crown"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-bold text-slate-500">حالة اشتراك الكابتن:</span>
+                                <span id="sub-status-pill" class="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-700">فترة تجريبية - 3 أيام</span>
+                            </div>
+                            <p id="sub-status-desc" class="text-xs text-slate-600 mt-1">يمكنك استقبال كافة طلبات التوصيل والمشاوير في المنطقة.</p>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button type="button" onclick="toggleRenewModal(true)" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-900 shadow-xs transition-all flex items-center gap-1.5">
+                            <i class="fa-solid fa-bolt"></i> تفعيل / تجديد الاشتراك (1$)
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Renewal & Payment Modal/Panel (Whish + Hamdan Sadek Shop) -->
+            <div id="renew-panel" class="hidden bg-white rounded-2xl border-2 border-amber-500 shadow-xl overflow-hidden">
+                <div class="bg-slate-900 text-white px-5 py-3.5 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-credit-card text-amber-400"></i>
+                        <h3 class="font-extrabold text-sm sm:text-base">تفعيل / تجديد اشتراك السائق (1$ لمدة 30 يوماً)</h3>
+                    </div>
+                    <button type="button" onclick="toggleRenewModal(false)" class="text-slate-400 hover:text-white text-lg px-2">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-5">
+                    <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">
+                        اختر إحدى الطريقتين التاليتين لدفع قيمة الاشتراك الرمزي (<strong>1 دولار أمريكي</strong>) والحصول على كود التفعيل الفوري لمدة شهر كامل:
+                    </p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Method 1: Whish Money -->
+                        <div class="rounded-xl border-2 border-rose-500/30 bg-rose-50/30 p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="inline-flex items-center gap-1.5 font-extrabold text-sm text-rose-700">
+                                    <i class="fa-solid fa-mobile-screen-button"></i> الطريقة 1: عبر Whish Money
+                                </span>
+                                <span class="text-[11px] font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md">تحويل 1$</span>
+                            </div>
+                            <p class="text-xs text-slate-600">حوّل مبلغ <strong>1$</strong> إلى رقم حساب Whish التالي ثم أرسل صورة الإيصال عبر واتساب لتستلم الكود فوراً:</p>
+                            
+                            <div class="bg-white border border-rose-200 rounded-xl p-2.5 flex items-center justify-between">
+                                <div>
+                                    <span class="text-[10px] text-slate-400 block">رقم حساب Whish Money</span>
+                                    <span id="display-whish-number" class="font-extrabold text-base text-slate-900 tracking-wider" dir="ltr">70/000000</span>
+                                </div>
+                                <button type="button" onclick="copyWhishNumber()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold flex items-center gap-1.5 transition-all">
+                                    <i class="fa-regular fa-copy"></i> نسخ الرقم
+                                </button>
+                            </div>
+
+                            <a id="btn-send-whish-receipt" href="#" target="_blank" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs">
+                                <i class="fa-brands fa-whatsapp text-base"></i> إرسال إيصال Whish على واتساب
+                            </a>
+                        </div>
+
+                        <!-- Method 2: Cash at Hamdan Sadek Shop -->
+                        <div class="rounded-xl border-2 border-amber-500/40 bg-amber-50/40 p-4 space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="inline-flex items-center gap-1.5 font-extrabold text-sm text-amber-800">
+                                    <i class="fa-solid fa-store"></i> الطريقة 2: الدفع نقداً (كاش)
+                                </span>
+                                <span class="text-[11px] font-bold bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded-md">1$ نقداً</span>
+                            </div>
+                            <p class="text-xs text-slate-600">يمكنك التوجه مباشرة إلى النقطة المعتمدة في منطقتنا ودفع <strong>1$</strong> واستلام كود التفعيل مطبوعاً:</p>
+                            
+                            <div class="bg-white border border-amber-200 rounded-xl p-3 space-y-1.5">
+                                <div class="flex items-center gap-2 text-sm font-extrabold text-slate-900">
+                                    <i class="fa-solid fa-location-dot text-amber-500"></i>
+                                    <span id="display-shop-name">محل حمدان صادق</span>
+                                </div>
+                                <p id="display-shop-address" class="text-xs text-slate-600 pr-5">الشارع العام - قرب الساحة الرئيسية</p>
+                                <p id="display-shop-hours" class="text-[11px] text-emerald-700 font-bold pr-5">
+                                    <i class="fa-regular fa-clock ml-1"></i> متواجدون يومياً من 8 صباحاً حتى 10 مساءً
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activation Code Input Box -->
+                    <div class="bg-slate-100 p-4 rounded-xl border border-slate-200">
+                        <label class="block text-xs font-extrabold text-slate-700 mb-2">
+                            <i class="fa-solid fa-key text-amber-500 ml-1"></i> لديك كود تفعيل؟ أدخله هنا لتفعيل حسابك فوراً:
+                        </label>
+                        <form onsubmit="handleActivateCode(event)" class="flex flex-col sm:flex-row gap-2.5">
+                            <input type="text" id="input-activation-code" required placeholder="أدخل الكود هنا (مثال: VIP-XXXX)" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 bg-white font-extrabold text-center uppercase tracking-widest text-sm focus:border-amber-500 outline-none" dir="ltr">
+                            <button type="submit" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-xs transition-all flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-circle-check"></i> تفعيل الاشتراك (30 يوم)
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Locked Subscription Warning Banner (Shown when subscription is expired) -->
+            <div id="driver-expired-lock-banner" class="hidden bg-rose-50 border-2 border-rose-500 text-rose-900 p-5 rounded-2xl text-center space-y-3 shadow-sm">
+                <div class="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mx-auto">
+                    <i class="fa-solid fa-lock"></i>
+                </div>
+                <h3 class="font-extrabold text-base">انتهت صلاحية اشتراكك!</h3>
+                <p class="text-xs sm:text-sm text-rose-700 max-w-md mx-auto">
+                    تم إخفاء أرقام هواتف الزبائن وإيقاف زر قبول الطلبات مؤقتاً. جدد اشتراكك بقيمة <strong>1$ فقط</strong> عبر Whish Money أو نقداً في <strong>محل حمدان صادق</strong> للعودة للعمل فوراً.
+                </p>
+                <button type="button" onclick="toggleRenewModal(true)" class="px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-sm shadow transition-all inline-flex items-center gap-2">
+                    <i class="fa-solid fa-unlock-keyhole"></i> تجديد الاشتراك الآن (1$)
+                </button>
+            </div>
+
+            <!-- Driver Dashboard Header & Status Toggle -->
+            <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-md">
+                <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div class="flex items-center gap-3">
+                        <div id="driver-avatar-icon" class="w-12 h-12 rounded-full bg-slate-800 border-2 border-amber-500 flex items-center justify-center text-xl text-amber-400">
+                            <i class="fa-solid fa-helmet-safety"></i>
+                        </div>
+                        <div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h2 id="driver-profile-name" class="font-bold text-base">الكابتن</h2>
+                                <span id="driver-status-badge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+                                    متاح للعمل
+                                </span>
+                            </div>
+                            <p id="driver-profile-vehicle" class="text-xs text-slate-400 mt-0.5">المركبة</p>
+                        </div>
+                    </div>
+
+                    <!-- Online/Offline & Logout Controls -->
+                    <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                        <button id="btn-toggle-online" onclick="toggleDriverOnline()" class="px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-power-off"></i>
+                            <span id="toggle-online-text">إيقاف استقبال الطلبات</span>
+                        </button>
+                        <button type="button" onclick="handleDriverLogout()" class="px-3 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-all flex items-center gap-1.5" title="تسجيل خروج أو تبديل حساب السائق">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>خروج</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Driver Daily Stats -->
+                <div class="grid grid-cols-3 gap-3 pt-4 text-center">
+                    <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/50">
+                        <span class="text-[11px] text-slate-400 block">أرباحي المسجلة</span>
+                        <span id="stat-earnings" class="text-base sm:text-lg font-extrabold text-amber-400 mt-0.5 block">0 ل.ل</span>
+                    </div>
+                    <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/50">
+                        <span class="text-[11px] text-slate-400 block">طلبات مكتملة</span>
+                        <span id="stat-completed" class="text-base sm:text-lg font-extrabold text-emerald-400 mt-0.5 block">0</span>
+                    </div>
+                    <div class="bg-slate-800/70 rounded-xl p-3 border border-slate-700/50">
+                        <span class="text-[11px] text-slate-400 block">طلبات بانتظارك</span>
+                        <span id="stat-available" class="text-base sm:text-lg font-extrabold text-white mt-0.5 block">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Offline Warning Banner -->
+            <div id="driver-offline-banner" class="hidden bg-amber-50 border border-amber-300 text-amber-800 p-4 rounded-xl flex items-center gap-3">
+                <i class="fa-solid fa-circle-pause text-2xl text-amber-500"></i>
+                <div>
+                    <h4 class="font-bold text-sm">أنت الآن في وضع "غير متاح"</h4>
+                    <p class="text-xs mt-0.5">قم بتفعيل حالة الاتصال لتتمكن من قبول الطلبات الجديدة في المنطقة.</p>
+                </div>
+            </div>
+
+            <!-- Header for Live Orders -->
+            <div class="flex items-center justify-between gap-2">
+                <h3 class="font-extrabold text-slate-800 text-base flex items-center gap-2">
+                    <i class="fa-solid fa-bell text-amber-500"></i>
+                    <span>الطلبات المباشرة في المنطقة</span>
+                </h3>
+                <span class="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full font-bold">تحديث تلقائي</span>
+            </div>
+
+            <!-- Active Accepted Orders by Driver -->
+            <div id="driver-accepted-list" class="space-y-3"></div>
+
+            <!-- Available New Orders Feed -->
+            <div id="driver-available-list" class="space-y-3"></div>
+
+            </div>
+        </section>
+
+        <!-- ========================================== -->
+        <!-- 3. ADMIN VIEW (لوحة الإدارة السرية للمشروع) -->
+        <!-- ========================================== -->
+        <section id="view-admin" class="hidden space-y-5">
+            
+            <!-- Admin Login Gate -->
+            <div id="admin-login-box" class="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-slate-200 max-w-md mx-auto text-center space-y-4">
+                <div class="w-14 h-14 rounded-2xl bg-slate-900 text-amber-400 flex items-center justify-center text-2xl mx-auto shadow">
+                    <i class="fa-solid fa-shield-halved"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-extrabold text-slate-900">لوحة إدارة المشروع</h2>
+                    <p class="text-xs text-slate-500 mt-1">مخصصة لصاحب التطبيق لتوليد أكواد الاشتراك (1$) وإدارة السائقين</p>
+                </div>
+                <form onsubmit="handleAdminLogin(event)" class="space-y-3 text-right">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">الرمز السري للإدارة:</label>
+                        <input type="password" id="input-admin-pin" required placeholder="••••" class="w-full px-4 py-2.5 rounded-xl border border-slate-300 text-center font-extrabold tracking-widest text-lg focus:border-amber-500 outline-none" dir="ltr">
+                        <p class="text-[11px] text-slate-500 mt-1.5 text-center">الرمز الافتراضي الأولي: <span class="font-bold text-slate-700">1234</span> (يمكنك تغييره من الداخل)</p>
+                    </div>
+                    <button type="submit" class="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-sm transition-all">
+                        دخول إلى لوحة الإدارة
+                    </button>
+                </form>
+            </div>
+
+            <!-- Admin Main Dashboard (Unlocked) -->
+            <div id="admin-dashboard-content" class="hidden space-y-5">
+                
+                <!-- Admin Top Summary -->
+                <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-md space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2.5">
+                            <i class="fa-solid fa-sliders text-amber-400 text-lg"></i>
+                            <h2 class="font-extrabold text-base">إدارة الاشتراكات والسائقين</h2>
+                        </div>
+                        <button type="button" onclick="logoutAdmin()" class="text-xs text-slate-400 hover:text-rose-400 font-bold">
+                            <i class="fa-solid fa-right-from-bracket ml-1"></i> قفل الإدارة
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                            <span class="text-[11px] text-slate-400 block">أرباح الاشتراكات</span>
+                            <span id="admin-stat-revenue" class="text-lg sm:text-xl font-extrabold text-emerald-400 mt-0.5 block">0$</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                            <span class="text-[11px] text-slate-400 block">السائقون المسجلون</span>
+                            <span id="admin-stat-drivers" class="text-lg sm:text-xl font-extrabold text-amber-400 mt-0.5 block">0</span>
+                        </div>
+                        <div class="bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+                            <span class="text-[11px] text-slate-400 block">إجمالي الطلبات</span>
+                            <span id="admin-stat-total-orders" class="text-lg sm:text-xl font-extrabold text-white mt-0.5 block">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 1. Activation Code Generator (1$ Subscription) -->
+                <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-4">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                                <i class="fa-solid fa-ticket text-amber-500"></i> مولّد أكواد الاشتراك (قيمة الكود 1$)
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">ولّد أكواداً لإرسالها للسائقين بعد الدفع على Whish أو لطباعتها وتركها في محل حمدان صادق.</p>
+                        </div>
+                        <button type="button" onclick="generateNewActivationCode()" class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold text-xs sm:text-sm shadow-xs transition-all flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> توليد كود جديد (30 يوم)
+                        </button>
+                    </div>
+
+                    <!-- Codes Table/List -->
+                    <div id="admin-codes-list" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1"></div>
+                </div>
+
+                <!-- 2. Registered Drivers List -->
+                <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-3">
+                    <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-users-gear text-blue-600"></i> السائقون المسجلون في التطبيق
+                    </h3>
+                    <div id="admin-drivers-list" class="divide-y divide-slate-100"></div>
+                </div>
+
+                <!-- 3. Payment Settings & Admin Security -->
+                <div class="bg-white rounded-2xl p-5 shadow-xs border border-slate-200 space-y-4">
+                    <h3 class="font-extrabold text-base text-slate-900 flex items-center gap-2">
+                        <i class="fa-solid fa-store text-emerald-600"></i> إعدادات رقم Whish وعنوان المحل المعتمد
+                    </h3>
+                    <form onsubmit="saveAdminSettings(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">رقم حساب Whish Money (لاستلام الـ 1$):</label>
+                                <input type="text" id="admin-input-whish" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:border-amber-500 outline-none" dir="ltr">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">رقم واتساب الإدارة (لاستلام الإيصالات):</label>
+                                <input type="text" id="admin-input-wa" required placeholder="مثال: 96170000000" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:border-amber-500 outline-none" dir="ltr">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">اسم النقطة المعتمدة للدفع النقدي:</label>
+                                <input type="text" id="admin-input-shop-name" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:border-amber-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">عنوان المحل بالتفصيل:</label>
+                                <input type="text" id="admin-input-shop-address" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:border-amber-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">أوقات تواجد المحل / ملاحظات للسائقين:</label>
+                                <input type="text" id="admin-input-shop-hours" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:border-amber-500 outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-700 mb-1">الرمز السري للدخول إلى الإدارة:</label>
+                                <input type="text" id="admin-input-pin" required minlength="4" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold focus:border-amber-500 outline-none" dir="ltr">
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                            <button type="button" onclick="confirmFactoryReset()" class="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs transition-all flex items-center gap-1.5">
+                                <i class="fa-solid fa-trash-can"></i> مسح كافة البيانات وتصفير التطبيق
+                            </button>
+                            <button type="submit" class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-xs transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-floppy-disk"></i> حفظ وتحديث البيانات فوراً
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Bottom Helper Info Bar -->
+    <footer class="bg-white border-t border-slate-200 py-3 px-4 text-center text-xs text-slate-500 mt-auto">
+        <p>نظام متكامل: <strong>الزبون</strong> يطلب • <strong>السائق</strong> يسجّل ويشترك بـ 1$ (عبر Whish أو محل حمدان صادق) وينفذ • <strong>الإدارة</strong> تدير الأكواد.</p>
+    </footer>
+
+    <!-- Application Logic -->
+    <script>
+        // --- Clean Production Storage Keys ---
+        const STORAGE_KEY_ORDERS = 'wasselni_prod_orders_v1';
+        const STORAGE_KEY_DRIVERS = 'wasselni_prod_drivers_v1';
+        const STORAGE_KEY_CURRENT_DRIVER = 'wasselni_prod_current_driver_v1';
+        const STORAGE_KEY_CUSTOMER_PROFILE = 'wasselni_prod_customer_v1';
+        const STORAGE_KEY_SETTINGS = 'wasselni_prod_settings_v1';
+        const STORAGE_KEY_CODES = 'wasselni_prod_codes_v1';
+
+        const defaultSettings = {
+            whishNumber: '70/000000',
+            adminWhatsapp: '96170000000',
+            shopName: 'محل حمدان صادق',
+            shopAddress: 'الشارع العام - قرب الساحة الرئيسية',
+            shopHours: 'متواجدون يومياً من 8 صباحاً حتى 10 مساءً',
+            adminPin: '1234'
+        };
+
+        let orders = [];
+        let drivers = [];
+        let currentDriverId = null;
+        let customerProfile = { name: '', phone: '' };
+        let adminSettings = {};
+        let activationCodes = [];
+        let isAdminUnlocked = false;
+        let currentRole = 'customer';
+        let currentServiceType = 'delivery';
+
+        // --- Initialization ---
+        function initApp() {
+            try {
+                const savedOrders = localStorage.getItem(STORAGE_KEY_ORDERS);
+                const savedDrivers = localStorage.getItem(STORAGE_KEY_DRIVERS);
+                const savedCurrentDriver = localStorage.getItem(STORAGE_KEY_CURRENT_DRIVER);
+                const savedCustomer = localStorage.getItem(STORAGE_KEY_CUSTOMER_PROFILE);
+                const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+                const savedCodes = localStorage.getItem(STORAGE_KEY_CODES);
+                
+                orders = savedOrders ? JSON.parse(savedOrders) : [];
+                drivers = savedDrivers ? JSON.parse(savedDrivers) : [];
+                currentDriverId = savedCurrentDriver || null;
+                customerProfile = savedCustomer ? JSON.parse(savedCustomer) : { name: '', phone: '' };
+                adminSettings = savedSettings ? { ...defaultSettings, ...JSON.parse(savedSettings) } : { ...defaultSettings };
+                activationCodes = savedCodes ? JSON.parse(savedCodes) : [];
+            } catch (e) {
+                orders = [];
+                drivers = [];
+                currentDriverId = null;
+                adminSettings = { ...defaultSettings };
+                activationCodes = [];
+            }
+
+            // Pre-fill saved customer info if returning user
+            if (customerProfile.name) document.getElementById('input-name').value = customerProfile.name;
+            if (customerProfile.phone) document.getElementById('input-phone').value = customerProfile.phone;
+            
+            updateEstimatedFare();
+            renderAll();
+        }
+
+        function saveData() {
+            try {
+                localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(orders));
+                localStorage.setItem(STORAGE_KEY_DRIVERS, JSON.stringify(drivers));
+                if (currentDriverId) {
+                    localStorage.setItem(STORAGE_KEY_CURRENT_DRIVER, currentDriverId);
+                } else {
+                    localStorage.removeItem(STORAGE_KEY_CURRENT_DRIVER);
+                }
+                localStorage.setItem(STORAGE_KEY_CUSTOMER_PROFILE, JSON.stringify(customerProfile));
+                localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(adminSettings));
+                localStorage.setItem(STORAGE_KEY_CODES, JSON.stringify(activationCodes));
+            } catch (e) {
+                console.warn('Storage not available');
+            }
+        }
+
+        function getCurrentDriver() {
+            if (!currentDriverId) return null;
+            return drivers.find(d => d.id === currentDriverId) || null;
+        }
+
+        function getRemainingSubscriptionDays(driver) {
+            if (!driver || !driver.subExpiresAt) return 0;
+            const msLeft = driver.subExpiresAt - Date.now();
+            if (msLeft <= 0) return 0;
+            return Math.ceil(msLeft / (1000 * 60 * 60 * 24));
+        }
+
+        // --- UI & Navigation ---
+        function switchRole(role) {
+            currentRole = role;
+            const viewCustomer = document.getElementById('view-customer');
+            const viewDriver = document.getElementById('view-driver');
+            const viewAdmin = document.getElementById('view-admin');
+            
+            const btnCustomer = document.getElementById('btn-role-customer');
+            const btnDriver = document.getElementById('btn-role-driver');
+            const btnAdmin = document.getElementById('btn-role-admin');
+
+            viewCustomer.classList.add('hidden');
+            viewDriver.classList.add('hidden');
+            viewAdmin.classList.add('hidden');
+
+            btnCustomer.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 text-slate-300 hover:text-white';
+            btnDriver.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 text-slate-300 hover:text-white relative';
+            btnAdmin.className = 'px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1 text-slate-400 hover:text-amber-400';
+
+            if (role === 'customer') {
+                viewCustomer.classList.remove('hidden');
+                btnCustomer.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 bg-amber-500 text-slate-900 shadow';
+            } else if (role === 'driver') {
+                viewDriver.classList.remove('hidden');
+                btnDriver.className = 'px-2.5 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1.5 bg-amber-500 text-slate-900 shadow relative';
+            } else if (role === 'admin') {
+                viewAdmin.classList.remove('hidden');
+                btnAdmin.className = 'px-2.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-all flex items-center gap-1 bg-amber-500 text-slate-900 shadow';
+            }
+            renderAll();
+        }
+
+        function setServiceType(type) {
+            currentServiceType = type;
+            const tabDelivery = document.getElementById('tab-delivery');
+            const tabRide = document.getElementById('tab-ride');
+            const labelPickup = document.getElementById('label-pickup');
+            const labelDropoff = document.getElementById('label-dropoff');
+            const labelDetails = document.getElementById('label-details');
+            const inputPickup = document.getElementById('input-pickup');
+            const inputDetails = document.getElementById('input-details');
+
+            if (type === 'delivery') {
+                tabDelivery.className = 'py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-white text-slate-900 shadow-sm border border-slate-200/60';
+                tabRide.className = 'py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700';
+                
+                labelPickup.innerHTML = '<i class="fa-solid fa-store text-amber-500 ml-1"></i> من أين نستلم الطلب؟ (المحل/المكان)';
+                inputPickup.placeholder = 'مثال: سوبرماركت البركة / الصيدلية';
+                labelDropoff.innerHTML = '<i class="fa-solid fa-location-dot text-emerald-600 ml-1"></i> إلى أين التوصيل؟ (الحي/المنزل)';
+                labelDetails.innerHTML = '<i class="fa-solid fa-list-check text-slate-500 ml-1"></i> تفاصيل الطلب أو الأغراض المطلوبة';
+                inputDetails.placeholder = 'اكتب قائمة الأغراض هنا (مثلاً: ربطة خبز، قنينة غاز، دواء)...';
+            } else {
+                tabRide.className = 'py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all bg-white text-slate-900 shadow-sm border border-slate-200/60';
+                tabDelivery.className = 'py-3 px-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all text-slate-500 hover:text-slate-700';
+                
+                labelPickup.innerHTML = '<i class="fa-solid fa-street-view text-amber-500 ml-1"></i> نقطة الانطلاق (مكان تواجدك حالياً)';
+                inputPickup.placeholder = 'مثال: قرب المسجد الكبير / الحي الغربي';
+                labelDropoff.innerHTML = '<i class="fa-solid fa-flag-checkered text-emerald-600 ml-1"></i> الوجهة (إلى أين تريد الذهاب؟)';
+                labelDetails.innerHTML = '<i class="fa-solid fa-users text-slate-500 ml-1"></i> عدد الركاب وملاحظات إضافية';
+                inputDetails.placeholder = 'مثال: راكب واحد، أو عائلة مع أغراض خفيفة...';
+            }
+            updateEstimatedFare();
+        }
+
+        function updateEstimatedFare() {
+            const vehicle = document.querySelector('input[name="vehicle"]:checked').value;
+            const distance = document.getElementById('select-distance').value;
+            
+            let base = 100000;
+            if (distance === 'medium') base = 150000;
+            if (distance === 'far') base = 220000;
+            
+            if (vehicle === 'tuktuk') {
+                base += 50000;
+            }
+            
+            const formatted = base.toLocaleString('en-US') + ' ل.ل';
+            const usdApprox = (base / 89500).toFixed(1);
+            document.getElementById('fare-display').textContent = formatted;
+            const usdEl = document.getElementById('fare-usd-display');
+            if (usdEl) usdEl.textContent = `(~${usdApprox}$)`;
+            return { num: base, text: formatted };
+        }
+
+        function fillPreset(type, vehicle, pickup, dropoff, details, distance) {
+            setServiceType(type);
+            const radios = document.getElementsByName('vehicle');
+            for (let r of radios) {
+                if (r.value === vehicle) r.checked = true;
+            }
+            document.getElementById('input-pickup').value = pickup;
+            document.getElementById('input-dropoff').value = dropoff;
+            document.getElementById('input-details').value = details;
+            document.getElementById('select-distance').value = distance;
+            updateEstimatedFare();
+            
+            // Scroll smoothly to form
+            document.getElementById('order-form').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            showToast('تم تعبئة تفاصيل الطلب السريع، أدخل اسمك ورقمك واضغط اطلب الآن', 'info');
+        }
+
+        // --- Customer Actions ---
+        function handleCreateOrder(e) {
+            e.preventDefault();
+            
+            const vehicle = document.querySelector('input[name="vehicle"]:checked').value;
+            const pickup = document.getElementById('input-pickup').value.trim();
+            const dropoff = document.getElementById('input-dropoff').value.trim();
+            const details = document.getElementById('input-details').value.trim();
+            const customerName = document.getElementById('input-name').value.trim();
+            const phone = document.getElementById('input-phone').value.trim();
+            const fareObj = updateEstimatedFare();
+
+            // Save customer profile for future convenience
+            customerProfile = { name: customerName, phone: phone };
+
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString('ar-LB', { hour: '2-digit', minute: '2-digit' });
+
+            const newOrder = {
+                id: 'ORD-' + Math.floor(1000 + Math.random() * 9000),
+                type: currentServiceType,
+                vehicle: vehicle,
+                pickup: pickup,
+                dropoff: dropoff,
+                details: details,
+                customerName: customerName,
+                phone: phone,
+                fare: fareObj.text,
+                fareNum: fareObj.num,
+                status: 'pending',
+                timestamp: timeStr,
+                driverId: '',
+                driverName: '',
+                driverPhone: '',
+                isUserCreated: true
+            };
+
+            orders.unshift(newOrder);
+            saveData();
+            
+            // Reset form fields except name/phone
+            document.getElementById('input-pickup').value = '';
+            document.getElementById('input-dropoff').value = '';
+            document.getElementById('input-details').value = '';
+            
+            renderAll();
+            showToast('تم إرسال طلبك بنجاح! يظهر الآن لدى سائقي المنطقة.', 'success');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelCustomerOrder(orderId) {
+            orders = orders.filter(o => o.id !== orderId);
+            saveData();
+            renderAll();
+            showToast('تم إزالة الطلب', 'info');
+        }
+
+        // --- Driver Registration, Auth & Actions ---
+        function handleDriverRegister(e) {
+            e.preventDefault();
+            const name = document.getElementById('reg-driver-name').value.trim();
+            const phone = document.getElementById('reg-driver-phone').value.trim();
+            const vehicle = document.querySelector('input[name="reg-vehicle"]:checked').value;
+            const plate = document.getElementById('reg-driver-plate').value.trim();
+
+            // Grant 3-day free trial upon registration
+            const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
+            const newDriver = {
+                id: 'DRV-' + Date.now(),
+                name: name,
+                phone: phone,
+                vehicle: vehicle,
+                plate: plate,
+                earnings: 0,
+                completedCount: 0,
+                isOnline: true,
+                isTrial: true,
+                subExpiresAt: Date.now() + threeDaysMs,
+                registeredAt: new Date().toLocaleDateString('ar-LB')
+            };
+
+            drivers.push(newDriver);
+            currentDriverId = newDriver.id;
+            
+            document.getElementById('driver-register-form').reset();
+            saveData();
+            renderAll();
+            showToast(`أهلاً بك كابتن ${name}! تم تفعيل حسابك مع 3 أيام تجربة مجانية.`, 'success');
+        }
+
+        function handleExistingDriverLogin() {
+            const selectedId = document.getElementById('select-existing-driver').value;
+            if (!selectedId) return;
+            currentDriverId = selectedId;
+            saveData();
+            renderAll();
+            const drv = getCurrentDriver();
+            if (drv) showToast(`تم تسجيل الدخول بحساب الكابتن ${drv.name}`, 'success');
+        }
+
+        function handleDriverLogout() {
+            currentDriverId = null;
+            toggleRenewModal(false);
+            saveData();
+            renderAll();
+            showToast('تم تسجيل الخروج من حساب السائق', 'info');
+        }
+
+        function toggleDriverOnline() {
+            const driver = getCurrentDriver();
+            if (!driver) return;
+
+            const daysLeft = getRemainingSubscriptionDays(driver);
+            if (daysLeft <= 0) {
+                showToast('اشتراكك منتهي! يرجى تجديد الاشتراك بـ 1$ أولاً.', 'error');
+                toggleRenewModal(true);
+                return;
+            }
+            driver.isOnline = !driver.isOnline;
+            saveData();
+            renderAll();
+            if (driver.isOnline) {
+                showToast('أنت الآن متاح لاستقبال الطلبات في المنطقة', 'success');
+            } else {
+                showToast('تم إيقاف استقبال الطلبات مؤقتاً', 'info');
+            }
+        }
+
+        function toggleRenewModal(show) {
+            const panel = document.getElementById('renew-panel');
+            if (show) {
+                panel.classList.remove('hidden');
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+        function copyWhishNumber() {
+            const num = adminSettings.whishNumber;
+            copyToClipboard(num, `تم نسخ رقم Whish (${num})! حوّل 1$ وأرسل الإيصال.`);
+        }
+
+        function handleActivateCode(e) {
+            e.preventDefault();
+            const driver = getCurrentDriver();
+            if (!driver) return;
+
+            const inputEl = document.getElementById('input-activation-code');
+            const enteredCode = inputEl.value.trim().toUpperCase();
+
+            const foundCode = activationCodes.find(c => c.code.toUpperCase() === enteredCode);
+
+            if (!foundCode) {
+                showToast('كود التفعيل غير صحيح! تأكد من الرقم أو اطلبه عبر Whish أو محل حمدان صادق.', 'error');
+                return;
+            }
+
+            if (foundCode.used) {
+                showToast('هذا الكود تم استخدامه مسبقاً! يرجى طلب كود جديد بقيمة 1$.', 'error');
+                return;
+            }
+
+            // Activate subscription for 30 days
+            const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+            foundCode.used = true;
+            foundCode.usedBy = driver.name;
+            
+            const baseTime = Math.max(Date.now(), driver.subExpiresAt || 0);
+            driver.subExpiresAt = baseTime + thirtyDaysMs;
+            driver.isTrial = false;
+            driver.isOnline = true;
+
+            inputEl.value = '';
+            toggleRenewModal(false);
+            saveData();
+            renderAll();
+            showToast('مبروك! تم تفعيل اشتراكك الشهري بنجاح لمدة 30 يوماً.', 'success');
+        }
+
+        function acceptOrder(orderId) {
+            const driver = getCurrentDriver();
+            if (!driver) return;
+
+            const daysLeft = getRemainingSubscriptionDays(driver);
+            if (daysLeft <= 0) {
+                showToast('يرجى تجديد اشتراكك الشهري (1$) لتتمكن من قبول الطلبات.', 'error');
+                toggleRenewModal(true);
+                return;
+            }
+            if (!driver.isOnline) {
+                showToast('يرجى تفعيل حالة "متاح للعمل" أولاً لقبول الطلبات', 'error');
+                return;
+            }
+            const order = orders.find(o => o.id === orderId);
+            if (order && order.status === 'pending') {
+                order.status = 'accepted';
+                order.driverId = driver.id;
+                order.driverName = `الكابتن ${driver.name}`;
+                order.driverPhone = driver.phone;
+                saveData();
+                renderAll();
+                showToast(`تم قبول الطلب ${order.id}! يمكنك الآن التواصل مع الزبون.`, 'success');
+            }
+        }
+
+        function completeOrder(orderId) {
+            const driver = getCurrentDriver();
+            if (!driver) return;
+
+            const order = orders.find(o => o.id === orderId);
+            if (order && order.status === 'accepted') {
+                order.status = 'completed';
+                driver.earnings = (driver.earnings || 0) + order.fareNum;
+                driver.completedCount = (driver.completedCount || 0) + 1;
+                saveData();
+                renderAll();
+                showToast(`رائع! تم إتمام التوصيل وإضافة ${order.fare} إلى أرباحك.`, 'success');
+            }
+        }
+
+        // --- Rendering ---
+        function renderAll() {
+            const pendingCount = orders.filter(o => o.status === 'pending').length;
+            
+            // Update Top Badge
+            const badge = document.getElementById('pending-badge');
+            if (pendingCount > 0) {
+                badge.textContent = pendingCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            renderCustomerActiveOrders();
+            renderCustomerRecentFeed();
+            renderDriverDashboard(pendingCount);
+            renderAdminDashboard();
+        }
+
+        function renderCustomerRecentFeed() {
+            const feedContainer = document.getElementById('customer-recent-feed');
+            if (!feedContainer) return;
+
+            if (orders.length === 0) {
+                feedContainer.innerHTML = `
+                    <div class="py-6 text-center text-xs text-slate-400">
+                        <i class="fa-solid fa-motorcycle text-lg mb-1.5 block text-slate-300"></i>
+                        لا توجد طلبات مسجلة حالياً في المنطقة. كن أول من يطلب الآن!
+                    </div>
+                `;
+                return;
+            }
+
+            const recent = orders.slice(0, 5);
+            feedContainer.innerHTML = recent.map(o => {
+                let badge = `<span class="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">بانتظار سائق</span>`;
+                if (o.status === 'accepted') badge = `<span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">قيد التوصيل</span>`;
+                if (o.status === 'completed') badge = `<span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">تم التوصيل</span>`;
+
+                return `
+                    <div class="py-2.5 flex items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2 truncate">
+                            <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                <i class="fa-solid ${o.vehicle === 'tuktuk' ? 'fa-shuttle-van' : 'fa-motorcycle'}"></i>
+                            </span>
+                            <div class="truncate">
+                                <span class="font-bold text-slate-800">${o.pickup}</span>
+                                <span class="text-slate-400 mx-1">←</span>
+                                <span class="font-bold text-slate-800">${o.dropoff}</span>
+                            </div>
+                        </div>
+                        <div class="shrink-0">${badge}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCustomerActiveOrders() {
+            const container = document.getElementById('customer-active-orders');
+            const trackableOrders = orders.filter(o => o.isUserCreated || o.status === 'accepted');
+
+            if (trackableOrders.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
+                            تتبع طلباتك الحالية
+                        </h3>
+                        <span class="text-[11px] text-slate-400">تحديث مباشر</span>
+                    </div>
+                    <div class="space-y-3">
+                        ${trackableOrders.map(order => {
+                            let statusStep = 1;
+                            let statusLabel = 'بانتظار قبول أحد السائقين...';
+                            let statusColor = 'text-amber-400';
+                            
+                            if (order.status === 'accepted') {
+                                statusStep = 2;
+                                statusLabel = `تم القبول! ${order.driverName} في الطريق إليك`;
+                                statusColor = 'text-emerald-400';
+                            } else if (order.status === 'completed') {
+                                statusStep = 3;
+                                statusLabel = 'تم التوصيل بنجاح! شكراً لاستخدامك تطبيقنا';
+                                statusColor = 'text-blue-400';
+                            }
+
+                            const cleanDrvPhone = (order.driverPhone || adminSettings.adminWhatsapp).replace(/\D/g, '');
+                            const waText = encodeURIComponent(`مرحباً كابتن، بخصوص طلبي رقم ${order.id} (${order.pickup} -> ${order.dropoff})`);
+
+                            return `
+                                <div class="bg-slate-800/90 rounded-xl p-3.5 border border-slate-700 space-y-3">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">#${order.id}</span>
+                                                <span class="text-xs font-bold ${statusColor}">${statusLabel}</span>
+                                            </div>
+                                            <p class="text-xs text-slate-300 mt-1.5 font-semibold">${order.pickup} <i class="fa-solid fa-arrow-left mx-1 text-slate-500"></i> ${order.dropoff}</p>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">${order.details}</p>
+                                        </div>
+                                        <span class="font-extrabold text-sm text-amber-400 shrink-0">${order.fare}</span>
+                                    </div>
+
+                                    <!-- Progress Bar -->
+                                    <div class="grid grid-cols-3 gap-1.5 pt-1">
+                                        <div class="h-1.5 rounded-full ${statusStep >= 1 ? 'bg-amber-500' : 'bg-slate-700'}"></div>
+                                        <div class="h-1.5 rounded-full ${statusStep >= 2 ? 'bg-emerald-500' : 'bg-slate-700'}"></div>
+                                        <div class="h-1.5 rounded-full ${statusStep >= 3 ? 'bg-blue-500' : 'bg-slate-700'}"></div>
+                                    </div>
+
+                                    <div class="flex items-center justify-between pt-1">
+                                        ${order.status === 'accepted' ? `
+                                            <a href="https://wa.me/${cleanDrvPhone}?text=${waText}" target="_blank" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all">
+                                                <i class="fa-brands fa-whatsapp text-sm"></i> تواصل مع السائق
+                                            </a>
+                                        ` : `<span></span>`}
+
+                                        ${order.status === 'pending' ? `
+                                            <button onclick="cancelCustomerOrder('${order.id}')" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">
+                                                إلغاء الطلب
+                                            </button>
+                                        ` : ''}
+                                        ${order.status === 'completed' ? `
+                                            <button onclick="cancelCustomerOrder('${order.id}')" class="text-xs text-slate-400 hover:text-white">
+                                                إخفاء من الشاشة
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDriverDashboard(pendingCount) {
+            const authBox = document.getElementById('driver-auth-box');
+            const mainDash = document.getElementById('driver-main-dashboard');
+            const driver = getCurrentDriver();
+
+            // Show Registration / Login Gate if not logged in
+            if (!driver) {
+                authBox.classList.remove('hidden');
+                mainDash.classList.add('hidden');
+
+                const existingSection = document.getElementById('driver-existing-login-section');
+                const existingSelect = document.getElementById('select-existing-driver');
+                if (drivers.length > 0) {
+                    existingSection.classList.remove('hidden');
+                    existingSelect.innerHTML = drivers.map(d => 
+                        `<option value="${d.id}">${d.name} (${d.vehicle === 'tuktuk' ? 'تكتوك' : 'موتوسيكل'})</option>`
+                    ).join('');
+                } else {
+                    existingSection.classList.add('hidden');
+                }
+                return;
+            }
+
+            authBox.classList.add('hidden');
+            mainDash.classList.remove('hidden');
+
+            // Populate Driver Profile Info
+            document.getElementById('driver-profile-name').textContent = `الكابتن: ${driver.name}`;
+            const vehicleLabel = driver.vehicle === 'tuktuk' ? 'تكتوك' : 'موتوسيكل';
+            document.getElementById('driver-profile-vehicle').textContent = `المركبة: ${vehicleLabel} • ${driver.plate}`;
+            document.getElementById('driver-avatar-icon').innerHTML = `<i class="fa-solid ${driver.vehicle === 'tuktuk' ? 'fa-shuttle-van' : 'fa-motorcycle'}"></i>`;
+
+            // Update Payment Info inside Driver Renew Panel
+            document.getElementById('display-whish-number').textContent = adminSettings.whishNumber;
+            document.getElementById('display-shop-name').textContent = adminSettings.shopName;
+            document.getElementById('display-shop-address').textContent = adminSettings.shopAddress;
+            document.getElementById('display-shop-hours').innerHTML = `<i class="fa-regular fa-clock ml-1"></i> ${adminSettings.shopHours}`;
+            
+            const waReceiptMsg = encodeURIComponent(`مرحباً إدارة التطبيق، قمت بتحويل 1$ عبر Whish Money لتجديد اشتراك السائق (${driver.name} - ${driver.phone})، مرفق صورة الإيصال.`);
+            const cleanAdminWa = adminSettings.adminWhatsapp.replace(/\D/g, '');
+            document.getElementById('btn-send-whish-receipt').href = `https://wa.me/${cleanAdminWa}?text=${waReceiptMsg}`;
+
+            // Update Subscription Card UI
+            const daysLeft = getRemainingSubscriptionDays(driver);
+            const isSubActive = daysLeft > 0;
+            const subCard = document.getElementById('driver-subscription-card');
+            const subIconBox = document.getElementById('sub-icon-box');
+            const subStatusPill = document.getElementById('sub-status-pill');
+            const subStatusDesc = document.getElementById('sub-status-desc');
+            const expiredLockBanner = document.getElementById('driver-expired-lock-banner');
+
+            if (isSubActive) {
+                subCard.className = 'rounded-2xl p-4 border-2 transition-all shadow-xs bg-white border-emerald-500/40';
+                subIconBox.className = 'w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0';
+                subIconBox.innerHTML = '<i class="fa-solid fa-crown"></i>';
+                subStatusPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-700';
+                subStatusPill.textContent = driver.isTrial ? `فترة تجريبية - باقي ${daysLeft} يوم` : `نشط - باقي ${daysLeft} يوم`;
+                subStatusDesc.textContent = `اشتراكك (1$/شهر) فعّال. يمكنك استقبال كافة طلبات المنطقة.`;
+                expiredLockBanner.classList.add('hidden');
+            } else {
+                subCard.className = 'rounded-2xl p-4 border-2 transition-all shadow-xs bg-rose-50/40 border-rose-500/50';
+                subIconBox.className = 'w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl shrink-0';
+                subIconBox.innerHTML = '<i class="fa-solid fa-lock"></i>';
+                subStatusPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-rose-100 text-rose-700';
+                subStatusPill.textContent = 'منتهي الصلاحية';
+                subStatusDesc.textContent = `يرجى تجديد الاشتراك بـ 1$ عبر Whish أو ${adminSettings.shopName}.`;
+                expiredLockBanner.classList.remove('hidden');
+            }
+
+            // Stats
+            document.getElementById('stat-earnings').textContent = (driver.earnings || 0).toLocaleString('en-US') + ' ل.ل';
+            document.getElementById('stat-completed').textContent = driver.completedCount || 0;
+            document.getElementById('stat-available').textContent = pendingCount;
+
+            // Online/Offline UI
+            const statusBadge = document.getElementById('driver-status-badge');
+            const toggleBtn = document.getElementById('btn-toggle-online');
+            const toggleText = document.getElementById('toggle-online-text');
+            const offlineBanner = document.getElementById('driver-offline-banner');
+
+            if (driver.isOnline && isSubActive) {
+                statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> متاح للعمل';
+                toggleBtn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600/90 hover:bg-rose-600 text-white transition-all flex items-center gap-1.5 shadow';
+                toggleText.textContent = 'إيقاف الطلبات';
+                offlineBanner.classList.add('hidden');
+            } else {
+                statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-400 border border-slate-600';
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span> غير متاح';
+                toggleBtn.className = 'px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center gap-1.5 shadow';
+                toggleText.textContent = 'تفعيل العمل';
+                if (isSubActive) {
+                    offlineBanner.classList.remove('hidden');
+                } else {
+                    offlineBanner.classList.add('hidden');
+                }
+            }
+
+            // Accepted Orders (In Progress for this driver)
+            const acceptedOrders = orders.filter(o => o.status === 'accepted' && o.driverId === driver.id);
+            const acceptedContainer = document.getElementById('driver-accepted-list');
+            
+            if (acceptedOrders.length > 0) {
+                acceptedContainer.innerHTML = `
+                    <div class="bg-emerald-50/80 border-2 border-emerald-500 rounded-2xl p-4 space-y-3">
+                        <h4 class="font-extrabold text-sm text-emerald-900 flex items-center gap-2">
+                            <i class="fa-solid fa-route text-emerald-600"></i> طلباتك قيد التنفيذ حالياً (${acceptedOrders.length})
+                        </h4>
+                        ${acceptedOrders.map(order => renderOrderCard(order, 'accepted', isSubActive, driver)).join('')}
+                    </div>
+                `;
+            } else {
+                acceptedContainer.innerHTML = '';
+            }
+
+            // Available Pending Orders
+            const pendingOrders = orders.filter(o => o.status === 'pending');
+            const availableContainer = document.getElementById('driver-available-list');
+
+            if (pendingOrders.length === 0) {
+                availableContainer.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+                        <div class="w-14 h-14 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center text-2xl mx-auto mb-3">
+                            <i class="fa-solid fa-satellite-dish"></i>
+                        </div>
+                        <h4 class="font-bold text-slate-800">جاهز لاستقبال طلبات المنطقة</h4>
+                        <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">لا توجد طلبات معلّقة في هذه اللحظة. سيظهر أي طلب جديد يرسله أهالي المنطقة هنا فوراً.</p>
+                    </div>
+                `;
+            } else {
+                availableContainer.innerHTML = pendingOrders.map(order => renderOrderCard(order, 'pending', isSubActive, driver)).join('');
+            }
+        }
+
+        function renderOrderCard(order, mode, isSubActive, driver) {
+            const isDelivery = order.type === 'delivery';
+            const isTuktuk = order.vehicle === 'tuktuk';
+
+            const typeBadge = isDelivery
+                ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-box-open"></i> توصيل أغراض</span>`
+                : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800"><i class="fa-solid fa-person-walking-luggage"></i> مشوار ركاب</span>`;
+
+            const vehicleBadge = isTuktuk
+                ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-shuttle-van"></i> مطلوب تكتوك</span>`
+                : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700"><i class="fa-solid fa-motorcycle"></i> مطلوب موتوسيكل</span>`;
+
+            const cleanPhone = order.phone.replace(/\D/g, '');
+            const waMsg = encodeURIComponent(`أهلاً ${order.customerName}، أنا الكابتن ${driver.name} من تطبيق توصيل المنطقة، استلمت طلبك (${order.details}) وأنا في طريقي إليك.`);
+
+            const displayedPhone = isSubActive ? order.phone : '•••••• (مخفي - جدد الاشتراك)';
+
+            return `
+                <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 hover:border-amber-300 transition-all space-y-3 ${!isSubActive ? 'opacity-85' : ''}">
+                    <!-- Top Badges & Fare -->
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            ${typeBadge}
+                            ${vehicleBadge}
+                            <span class="text-[11px] text-slate-400 mr-1"><i class="fa-regular fa-clock"></i> ${order.timestamp}</span>
+                        </div>
+                        <div class="text-left">
+                            <span class="text-base font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/60">${order.fare}</span>
+                        </div>
+                    </div>
+
+                    <!-- Route Info -->
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2 text-sm">
+                        <div class="flex items-start gap-2">
+                            <i class="fa-solid fa-circle-dot text-amber-500 mt-1 text-xs"></i>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block leading-none">الاستلام من:</span>
+                                <span class="font-bold text-slate-800">${order.pickup}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-2">
+                            <i class="fa-solid fa-location-dot text-emerald-600 mt-1 text-xs"></i>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block leading-none">التوصيل إلى:</span>
+                                <span class="font-bold text-slate-800">${order.dropoff}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Details -->
+                    <div class="text-xs text-slate-700 bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
+                        <strong class="text-slate-900">التفاصيل:</strong> ${order.details}
+                    </div>
+
+                    <!-- Customer Info & Action Buttons -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                        <div class="flex items-center gap-2 text-xs text-slate-600">
+                            <div class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700">
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            <div>
+                                <span class="font-bold text-slate-800 block">${order.customerName}</span>
+                                <span class="text-[11px] ${isSubActive ? 'text-slate-400' : 'text-rose-500 font-bold'}" dir="ltr">${displayedPhone}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            ${mode === 'pending' ? (
+                                isSubActive ? `
+                                    <button onclick="acceptOrder('${order.id}')" class="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-check"></i> قبول الطلب
+                                    </button>
+                                ` : `
+                                    <button onclick="toggleRenewModal(true)" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 font-extrabold text-xs transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-lock"></i> جدد بـ 1$ للقبول
+                                    </button>
+                                `
+                            ) : `
+                                <a href="https://wa.me/${cleanPhone}?text=${waMsg}" target="_blank" class="px-3.5 py-2.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-xs transition-all flex items-center gap-1.5">
+                                    <i class="fa-brands fa-whatsapp text-base text-emerald-600"></i> واتساب الزبون
+                                </a>
+                                <button onclick="completeOrder('${order.id}')" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-flag-checkered"></i> تم التوصيل
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Admin Actions & Rendering ---
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const pin = document.getElementById('input-admin-pin').value.trim();
+            if (pin === adminSettings.adminPin) {
+                isAdminUnlocked = true;
+                document.getElementById('input-admin-pin').value = '';
+                renderAdminDashboard();
+                showToast('تم الدخول إلى لوحة الإدارة بنجاح', 'success');
+            } else {
+                showToast('الرمز السري غير صحيح!', 'error');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminUnlocked = false;
+            renderAdminDashboard();
+            showToast('تم قفل لوحة الإدارة', 'info');
+        }
+
+        function generateNewActivationCode() {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const newCode = `VIP-${randomNum}`;
+            const nowStr = new Date().toLocaleDateString('ar-LB');
+            activationCodes.unshift({
+                code: newCode,
+                used: false,
+                usedBy: '',
+                createdAt: nowStr
+            });
+            saveData();
+            renderAdminDashboard();
+            showToast(`تم توليد كود جديد (${newCode}) بقيمة 1$ لمدة 30 يوماً!`, 'success');
+        }
+
+        function copyToClipboard(text, successMsg) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand('copy');
+                showToast(successMsg || `تم نسخ: ${text}`, 'success');
+            } catch (err) {
+                showToast('تعذر النسخ التلقائي، يرجى النسخ يدوياً', 'error');
+            }
+            document.body.removeChild(tempInput);
+        }
+
+        function saveAdminSettings(e) {
+            e.preventDefault();
+            adminSettings.whishNumber = document.getElementById('admin-input-whish').value.trim();
+            adminSettings.adminWhatsapp = document.getElementById('admin-input-wa').value.trim();
+            adminSettings.shopName = document.getElementById('admin-input-shop-name').value.trim();
+            adminSettings.shopAddress = document.getElementById('admin-input-shop-address').value.trim();
+            adminSettings.shopHours = document.getElementById('admin-input-shop-hours').value.trim();
+            adminSettings.adminPin = document.getElementById('admin-input-pin').value.trim() || '1234';
+            
+            saveData();
+            renderAll();
+            showToast('تم حفظ وتحديث إعدادات الإدارة بنجاح!', 'success');
+        }
+
+        let resetConfirmPending = false;
+        function confirmFactoryReset() {
+            if (!resetConfirmPending) {
+                resetConfirmPending = true;
+                showToast('اضغط مرة أخرى خلال 4 ثوانٍ لتأكيد مسح كافة الطلبات والسائقين والأكواد!', 'error');
+                setTimeout(() => { resetConfirmPending = false; }, 4000);
+                return;
+            }
+            orders = [];
+            drivers = [];
+            currentDriverId = null;
+            activationCodes = [];
+            resetConfirmPending = false;
+            saveData();
+            renderAll();
+            showToast('تم مسح كافة البيانات وتصفير التطبيق بالكامل.', 'success');
+        }
+
+        function renderAdminDashboard() {
+            const loginBox = document.getElementById('admin-login-box');
+            const dashContent = document.getElementById('admin-dashboard-content');
+
+            if (!isAdminUnlocked) {
+                loginBox.classList.remove('hidden');
+                dashContent.classList.add('hidden');
+                return;
+            }
+
+            loginBox.classList.add('hidden');
+            dashContent.classList.remove('hidden');
+
+            // Stats
+            const usedCount = activationCodes.filter(c => c.used).length;
+            document.getElementById('admin-stat-revenue').textContent = `${usedCount}$`;
+            document.getElementById('admin-stat-drivers').textContent = drivers.length;
+            document.getElementById('admin-stat-total-orders').textContent = orders.length;
+
+            // Populate Settings Inputs (only if not currently focused)
+            if (document.activeElement.tagName !== 'INPUT') {
+                document.getElementById('admin-input-whish').value = adminSettings.whishNumber;
+                document.getElementById('admin-input-wa').value = adminSettings.adminWhatsapp;
+                document.getElementById('admin-input-shop-name').value = adminSettings.shopName;
+                document.getElementById('admin-input-shop-address').value = adminSettings.shopAddress;
+                document.getElementById('admin-input-shop-hours').value = adminSettings.shopHours;
+                document.getElementById('admin-input-pin').value = adminSettings.adminPin;
+            }
+
+            // Render Registered Drivers List
+            const driversContainer = document.getElementById('admin-drivers-list');
+            if (drivers.length === 0) {
+                driversContainer.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center">لم يسجل أي سائق بعد. سيتم عرض بيانات السائقين هنا فور تسجيلهم.</p>`;
+            } else {
+                driversContainer.innerHTML = drivers.map(d => {
+                    const days = getRemainingSubscriptionDays(d);
+                    return `
+                        <div class="py-2.5 flex items-center justify-between gap-2 text-xs">
+                            <div>
+                                <span class="font-extrabold text-slate-800">${d.name}</span>
+                                <span class="text-slate-500 mr-1.5">(${d.vehicle === 'tuktuk' ? 'تكتوك' : 'موتوسيكل'} • ${d.plate})</span>
+                                <span class="block text-[11px] text-slate-400 mt-0.5" dir="ltr">${d.phone}</span>
+                            </div>
+                            <span class="px-2.5 py-0.5 rounded-full font-bold text-[11px] ${days > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+                                ${days > 0 ? `نشط (${days} يوم)` : 'منتهي'}
+                            </span>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            // Render Codes List
+            const codesContainer = document.getElementById('admin-codes-list');
+            if (activationCodes.length === 0) {
+                codesContainer.innerHTML = `<p class="text-xs text-slate-400 py-3 text-center col-span-2">لا توجد أكواد مولّدة بعد. اضغط على زر "توليد كود جديد" في الأعلى لإنشاء أول كود اشتراك.</p>`;
+            } else {
+                codesContainer.innerHTML = activationCodes.map(item => {
+                    const waShareMsg = encodeURIComponent(`مرحباً كابتن، هذا كود تفعيل اشتراكك الشهري (1$) في تطبيق التوصيل لمدة 30 يوماً:\n*${item.code}*`);
+                    return `
+                        <div class="p-3 rounded-xl border ${item.used ? 'bg-slate-50 border-slate-200 opacity-75' : 'bg-amber-50/40 border-amber-300/70'} flex items-center justify-between gap-2">
+                            <div>
+                                <div class="flex items-center gap-2">
+                                    <span class="font-extrabold text-sm tracking-wider text-slate-900" dir="ltr">${item.code}</span>
+                                    ${item.used 
+                                        ? `<span class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded">مستخدم (${item.usedBy})</span>`
+                                        : `<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">متاح (1$)</span>`
+                                    }
+                                </div>
+                                <span class="text-[10px] text-slate-400 block mt-0.5">تاريخ الإنشاء: ${item.createdAt}</span>
+                            </div>
+                            ${!item.used ? `
+                                <div class="flex items-center gap-1.5">
+                                    <button type="button" onclick="copyToClipboard('${item.code}', 'تم نسخ الكود ${item.code}')" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs" title="نسخ الكود">
+                                        <i class="fa-regular fa-copy"></i>
+                                    </button>
+                                    <a href="https://wa.me/?text=${waShareMsg}" target="_blank" class="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs" title="إرسال الكود عبر واتساب">
+                                        <i class="fa-brands fa-whatsapp"></i>
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }).join('');
+            }
+        }
+
+        function simulateSubscriptionExpiry() {
+            driverStats.subActive = false;
+            driverStats.subDaysLeft = 0;
+            saveData();
+            renderAll();
+            showToast('تمت محاكاة انتهاء الاشتراك الشهري! لاحظ كيف تم قفل الطلبات.', 'error');
+        }
+
+        function toggleRenewModal(show) {
+            const panel = document.getElementById('renew-panel');
+            if (show) {
+                panel.classList.remove('hidden');
+                panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                panel.classList.add('hidden');
+            }
+        }
+
+        function copyWhishNumber() {
+            const num = adminSettings.whishNumber;
+            copyToClipboard(num, `تم نسخ رقم Whish (${num})! حوّل 1$ وأرسل الإيصال.`);
+        }
+
+        function fillDemoCode() {
+            const unused = activationCodes.find(c => !c.used);
+            const codeToFill = unused ? unused.code : 'VIP-1001';
+            document.getElementById('input-activation-code').value = codeToFill;
+        }
+
+        function handleActivateCode(e) {
+            e.preventDefault();
+            const inputEl = document.getElementById('input-activation-code');
+            const enteredCode = inputEl.value.trim().toUpperCase();
+
+            const foundCode = activationCodes.find(c => c.code.toUpperCase() === enteredCode);
+
+            if (!foundCode) {
+                showToast('كود التفعيل غير صحيح! تأكد من الرقم أو اطلبه عبر Whish أو محل حمدان صادق.', 'error');
+                return;
+            }
+
+            if (foundCode.used) {
+                showToast('هذا الكود تم استخدامه مسبقاً! يرجى طلب كود جديد بقيمة 1$.', 'error');
+                return;
+            }
+
+            // Activate subscription
+            foundCode.used = true;
+            foundCode.usedBy = 'الكابتن سامر (أبو علي)';
+            driverStats.subActive = true;
+            driverStats.subDaysLeft = 30;
+            driverStats.isOnline = true;
+
+            inputEl.value = '';
+            toggleRenewModal(false);
+            saveData();
+            renderAll();
+            showToast('مبروك! تم تفعيل اشتراكك الشهري بنجاح لمدة 30 يوماً.', 'success');
+        }
+
+        function acceptOrder(orderId) {
+            if (!driverStats.subActive) {
+                showToast('يرجى تجديد اشتراكك الشهري (1$) لتتمكن من قبول الطلبات.', 'error');
+                toggleRenewModal(true);
+                return;
+            }
+            if (!driverStats.isOnline) {
+                showToast('يرجى تفعيل حالة "متاح للعمل" أولاً لقبول الطلبات', 'error');
+                return;
+            }
+            const order = orders.find(o => o.id === orderId);
+            if (order && order.status === 'pending') {
+                order.status = 'accepted';
+                order.driverName = 'الكابتن سامر (أبو علي)';
+                saveData();
+                renderAll();
+                showToast(`تم قبول الطلب ${order.id}! يمكنك الآن التواصل مع الزبون.`, 'success');
+            }
+        }
+
+        function completeOrder(orderId) {
+            const order = orders.find(o => o.id === orderId);
+            if (order && order.status === 'accepted') {
+                order.status = 'completed';
+                driverStats.earnings += order.fareNum;
+                driverStats.completedCount += 1;
+                saveData();
+                renderAll();
+                showToast(`رائع! تم إتمام التوصيل وإضافة ${order.fare} إلى أرباحك.`, 'success');
+            }
+        }
+
+        // --- Rendering ---
+        function renderAll() {
+            const pendingCount = orders.filter(o => o.status === 'pending').length;
+            
+            // Update Top Badge
+            const badge = document.getElementById('pending-badge');
+            if (pendingCount > 0) {
+                badge.textContent = pendingCount;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+
+            renderCustomerActiveOrders();
+            renderCustomerRecentFeed();
+            renderDriverDashboard(pendingCount);
+            renderAdminDashboard();
+        }
+
+        function renderCustomerRecentFeed() {
+            const feedContainer = document.getElementById('customer-recent-feed');
+            if (!feedContainer) return;
+
+            const recent = orders.slice(0, 4);
+            feedContainer.innerHTML = recent.map(o => {
+                let badge = `<span class="text-[11px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded">بانتظار سائق</span>`;
+                if (o.status === 'accepted') badge = `<span class="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">قيد التوصيل</span>`;
+                if (o.status === 'completed') badge = `<span class="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">تم التوصيل</span>`;
+
+                return `
+                    <div class="py-2.5 flex items-center justify-between gap-2 text-xs">
+                        <div class="flex items-center gap-2 truncate">
+                            <span class="w-7 h-7 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                                <i class="fa-solid ${o.vehicle === 'tuktuk' ? 'fa-shuttle-van' : 'fa-motorcycle'}"></i>
+                            </span>
+                            <div class="truncate">
+                                <span class="font-bold text-slate-800">${o.pickup}</span>
+                                <span class="text-slate-400 mx-1">←</span>
+                                <span class="font-bold text-slate-800">${o.dropoff}</span>
+                            </div>
+                        </div>
+                        <div class="shrink-0">${badge}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderCustomerActiveOrders() {
+            const container = document.getElementById('customer-active-orders');
+            // Show orders created by user or accepted orders so user can track them
+            const trackableOrders = orders.filter(o => o.isUserCreated || o.status === 'accepted');
+
+            if (trackableOrders.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="bg-slate-900 text-white rounded-2xl p-4 shadow-md border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="font-bold text-sm text-amber-400 flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 pulse-dot"></span>
+                            تتبع طلباتك الحالية
+                        </h3>
+                        <span class="text-[11px] text-slate-400">تحديث مباشر</span>
+                    </div>
+                    <div class="space-y-3">
+                        ${trackableOrders.map(order => {
+                            let statusStep = 1;
+                            let statusLabel = 'بانتظار قبول أحد السائقين...';
+                            let statusColor = 'text-amber-400';
+                            
+                            if (order.status === 'accepted') {
+                                statusStep = 2;
+                                statusLabel = `تم القبول! ${order.driverName} في الطريق إليك`;
+                                statusColor = 'text-emerald-400';
+                            } else if (order.status === 'completed') {
+                                statusStep = 3;
+                                statusLabel = 'تم التوصيل بنجاح! شكراً لاستخدامك تطبيقنا';
+                                statusColor = 'text-blue-400';
+                            }
+
+                            const waText = encodeURIComponent(`مرحباً كابتن، بخصوص طلبي رقم ${order.id} (${order.pickup} -> ${order.dropoff})`);
+
+                            return `
+                                <div class="bg-slate-800/90 rounded-xl p-3.5 border border-slate-700 space-y-3">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div>
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-bold bg-slate-700 px-2 py-0.5 rounded text-slate-300">#${order.id}</span>
+                                                <span class="text-xs font-bold ${statusColor}">${statusLabel}</span>
+                                            </div>
+                                            <p class="text-xs text-slate-300 mt-1.5 font-semibold">${order.pickup} <i class="fa-solid fa-arrow-left mx-1 text-slate-500"></i> ${order.dropoff}</p>
+                                            <p class="text-[11px] text-slate-400 mt-0.5">${order.details}</p>
+                                        </div>
+                                        <span class="font-extrabold text-sm text-amber-400 shrink-0">${order.fare}</span>
+                                    </div>
+
+                                    <!-- Progress Bar -->
+                                    <div class="grid grid-cols-3 gap-1.5 pt-1">
+                                        <div class="h-1.5 rounded-full ${statusStep >= 1 ? 'bg-amber-500' : 'bg-slate-700'}"></div>
+                                        <div class="h-1.5 rounded-full ${statusStep >= 2 ? 'bg-emerald-500' : 'bg-slate-700'}"></div>
+                                        <div class="h-1.5 rounded-full ${statusStep >= 3 ? 'bg-blue-500' : 'bg-slate-700'}"></div>
+                                    </div>
+
+                                    <div class="flex items-center justify-between pt-1">
+                                        ${order.status === 'accepted' ? `
+                                            <a href="https://wa.me/96170000000?text=${waText}" target="_blank" class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold inline-flex items-center gap-1.5 transition-all">
+                                                <i class="fa-brands fa-whatsapp text-sm"></i> تواصل مع السائق
+                                            </a>
+                                        ` : `<span></span>`}
+
+                                        ${order.status === 'pending' ? `
+                                            <button onclick="cancelCustomerOrder('${order.id}')" class="text-xs text-rose-400 hover:text-rose-300 font-semibold">
+                                                إلغاء الطلب
+                                            </button>
+                                        ` : ''}
+                                        ${order.status === 'completed' ? `
+                                            <button onclick="cancelCustomerOrder('${order.id}')" class="text-xs text-slate-400 hover:text-white">
+                                                إخفاء من الشاشة
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderDriverDashboard(pendingCount) {
+            // Update Payment Info inside Driver Renew Panel
+            document.getElementById('display-whish-number').textContent = adminSettings.whishNumber;
+            document.getElementById('display-shop-name').textContent = adminSettings.shopName;
+            document.getElementById('display-shop-address').textContent = adminSettings.shopAddress;
+            document.getElementById('display-shop-hours').innerHTML = `<i class="fa-regular fa-clock ml-1"></i> ${adminSettings.shopHours}`;
+            
+            const waReceiptMsg = encodeURIComponent(`مرحباً إدارة التطبيق، قمت بتحويل 1$ عبر Whish Money لتجديد اشتراك السائق (الكابتن سامر)، مرفق صورة الإيصال.`);
+            const cleanAdminWa = adminSettings.adminWhatsapp.replace(/\D/g, '');
+            document.getElementById('btn-send-whish-receipt').href = `https://wa.me/${cleanAdminWa}?text=${waReceiptMsg}`;
+
+            // Update Subscription Card UI
+            const subCard = document.getElementById('driver-subscription-card');
+            const subIconBox = document.getElementById('sub-icon-box');
+            const subStatusPill = document.getElementById('sub-status-pill');
+            const subStatusDesc = document.getElementById('sub-status-desc');
+            const expiredLockBanner = document.getElementById('driver-expired-lock-banner');
+            const btnSimExpiry = document.getElementById('btn-simulate-expiry');
+
+            if (driverStats.subActive) {
+                subCard.className = 'rounded-2xl p-4 border-2 transition-all shadow-xs bg-white border-emerald-500/40';
+                subIconBox.className = 'w-11 h-11 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-xl shrink-0';
+                subIconBox.innerHTML = '<i class="fa-solid fa-crown"></i>';
+                subStatusPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-emerald-100 text-emerald-700';
+                subStatusPill.textContent = `نشط - باقي ${driverStats.subDaysLeft} يوم`;
+                subStatusDesc.textContent = `اشتراكك (1$/شهر) فعّال. يمكنك استقبال كافة طلبات المنطقة.`;
+                expiredLockBanner.classList.add('hidden');
+                btnSimExpiry.classList.remove('hidden');
+            } else {
+                subCard.className = 'rounded-2xl p-4 border-2 transition-all shadow-xs bg-rose-50/40 border-rose-500/50';
+                subIconBox.className = 'w-11 h-11 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-xl shrink-0';
+                subIconBox.innerHTML = '<i class="fa-solid fa-lock"></i>';
+                subStatusPill.className = 'px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-rose-100 text-rose-700';
+                subStatusPill.textContent = 'منتهي الصلاحية';
+                subStatusDesc.textContent = `يرجى تجديد الاشتراك بـ 1$ عبر Whish أو ${adminSettings.shopName}.`;
+                expiredLockBanner.classList.remove('hidden');
+                btnSimExpiry.classList.add('hidden');
+            }
+
+            // Stats
+            document.getElementById('stat-earnings').textContent = driverStats.earnings.toLocaleString('en-US') + ' ل.ل';
+            document.getElementById('stat-completed').textContent = driverStats.completedCount;
+            document.getElementById('stat-available').textContent = pendingCount;
+
+            // Online/Offline UI
+            const statusBadge = document.getElementById('driver-status-badge');
+            const toggleBtn = document.getElementById('btn-toggle-online');
+            const toggleText = document.getElementById('toggle-online-text');
+            const offlineBanner = document.getElementById('driver-offline-banner');
+
+            if (driverStats.isOnline && driverStats.subActive) {
+                statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span> متاح للعمل';
+                toggleBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-rose-600/90 hover:bg-rose-600 text-white transition-all flex items-center gap-2 shadow';
+                toggleText.textContent = 'إيقاف استقبال الطلبات';
+                offlineBanner.classList.add('hidden');
+            } else {
+                statusBadge.className = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-slate-700 text-slate-400 border border-slate-600';
+                statusBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-slate-500"></span> غير متاح';
+                toggleBtn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white transition-all flex items-center gap-2 shadow';
+                toggleText.textContent = 'تفعيل استقبال الطلبات';
+                if (driverStats.subActive) {
+                    offlineBanner.classList.remove('hidden');
+                } else {
+                    offlineBanner.classList.add('hidden');
+                }
+            }
+
+            // Accepted Orders (In Progress)
+            const acceptedOrders = orders.filter(o => o.status === 'accepted');
+            const acceptedContainer = document.getElementById('driver-accepted-list');
+            
+            if (acceptedOrders.length > 0) {
+                acceptedContainer.innerHTML = `
+                    <div class="bg-emerald-50/80 border-2 border-emerald-500 rounded-2xl p-4 space-y-3">
+                        <h4 class="font-extrabold text-sm text-emerald-900 flex items-center gap-2">
+                            <i class="fa-solid fa-route text-emerald-600"></i> طلبات قيد التنفيذ حالياً (${acceptedOrders.length})
+                        </h4>
+                        ${acceptedOrders.map(order => renderOrderCard(order, 'accepted')).join('')}
+                    </div>
+                `;
+            } else {
+                acceptedContainer.innerHTML = '';
+            }
+
+            // Available Pending Orders
+            const pendingOrders = orders.filter(o => o.status === 'pending');
+            const availableContainer = document.getElementById('driver-available-list');
+
+            if (pendingOrders.length === 0) {
+                availableContainer.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+                        <div class="w-14 h-14 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center text-2xl mx-auto mb-3">
+                            <i class="fa-solid fa-mug-hot"></i>
+                        </div>
+                        <h4 class="font-bold text-slate-700">لا توجد طلبات جديدة في الانتظار حالياً</h4>
+                        <p class="text-xs text-slate-500 mt-1">يمكنك الانتقال لواجهة "الزبون" في الأعلى وإضافة طلب جديد لتجربته فوراً.</p>
+                    </div>
+                `;
+            } else {
+                availableContainer.innerHTML = pendingOrders.map(order => renderOrderCard(order, 'pending')).join('');
+            }
+        }
+
+        function renderOrderCard(order, mode) {
+            const isDelivery = order.type === 'delivery';
+            const isTuktuk = order.vehicle === 'tuktuk';
+
+            const typeBadge = isDelivery
+                ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-box-open"></i> توصيل أغراض</span>`
+                : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800"><i class="fa-solid fa-person-walking-luggage"></i> مشوار ركاب</span>`;
+
+            const vehicleBadge = isTuktuk
+                ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-shuttle-van"></i> مطلوب تكتوك</span>`
+                : `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700"><i class="fa-solid fa-motorcycle"></i> مطلوب موتوسيكل</span>`;
+
+            // Clean phone for WhatsApp link
+            const cleanPhone = order.phone.replace(/\D/g, '');
+            const waMsg = encodeURIComponent(`أهلاً ${order.customerName}، أنا الكابتن من تطبيق توصيل المنطقة، استلمت طلبك (${order.details}) وأنا في طريقي إليك.`);
+
+            // Mask phone if driver subscription is expired
+            const isSubActive = driverStats.subActive;
+            const displayedPhone = isSubActive ? order.phone : '•••••• (مخفي - جدد الاشتراك)';
+
+            return `
+                <div class="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 hover:border-amber-300 transition-all space-y-3 ${!isSubActive ? 'opacity-85' : ''}">
+                    <!-- Top Badges & Fare -->
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            ${typeBadge}
+                            ${vehicleBadge}
+                            <span class="text-[11px] text-slate-400 mr-1"><i class="fa-regular fa-clock"></i> ${order.timestamp}</span>
+                        </div>
+                        <div class="text-left">
+                            <span class="text-base font-extrabold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200/60">${order.fare}</span>
+                        </div>
+                    </div>
+
+                    <!-- Route Info -->
+                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2 text-sm">
+                        <div class="flex items-start gap-2">
+                            <i class="fa-solid fa-circle-dot text-amber-500 mt-1 text-xs"></i>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block leading-none">الاستلام من:</span>
+                                <span class="font-bold text-slate-800">${order.pickup}</span>
+                            </div>
+                        </div>
+                        <div class="flex items-start gap-2">
+                            <i class="fa-solid fa-location-dot text-emerald-600 mt-1 text-xs"></i>
+                            <div>
+                                <span class="text-[11px] text-slate-400 block leading-none">التوصيل إلى:</span>
+                                <span class="font-bold text-slate-800">${order.dropoff}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Details -->
+                    <div class="text-xs text-slate-700 bg-amber-50/50 p-2.5 rounded-lg border border-amber-100">
+                        <strong class="text-slate-900">التفاصيل:</strong> ${order.details}
+                    </div>
+
+                    <!-- Customer Info & Action Buttons -->
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-slate-100">
+                        <div class="flex items-center gap-2 text-xs text-slate-600">
+                            <div class="w-7 h-7 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700">
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            <div>
+                                <span class="font-bold text-slate-800 block">${order.customerName}</span>
+                                <span class="text-[11px] ${isSubActive ? 'text-slate-400' : 'text-rose-500 font-bold'}" dir="ltr">${displayedPhone}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                            ${mode === 'pending' ? (
+                                isSubActive ? `
+                                    <button onclick="acceptOrder('${order.id}')" class="flex-1 sm:flex-initial px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-900 font-extrabold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-check"></i> قبول الطلب
+                                    </button>
+                                ` : `
+                                    <button onclick="toggleRenewModal(true)" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-800 font-extrabold text-xs transition-all flex items-center justify-center gap-1.5">
+                                        <i class="fa-solid fa-lock"></i> جدد بـ 1$ للقبول
+                                    </button>
+                                `
+                            ) : `
+                                <a href="https://wa.me/${cleanPhone}?text=${waMsg}" target="_blank" class="px-3.5 py-2.5 rounded-xl bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-bold text-xs transition-all flex items-center gap-1.5">
+                                    <i class="fa-brands fa-whatsapp text-base text-emerald-600"></i> واتساب الزبون
+                                </a>
+                                <button onclick="completeOrder('${order.id}')" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition-all flex items-center gap-1.5">
+                                    <i class="fa-solid fa-flag-checkered"></i> تم التوصيل
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- Admin Actions & Rendering ---
+        function handleAdminLogin(e) {
+            e.preventDefault();
+            const pin = document.getElementById('input-admin-pin').value.trim();
+            if (pin === '1234') {
+                isAdminUnlocked = true;
+                document.getElementById('input-admin-pin').value = '';
+                renderAdminDashboard();
+                showToast('تم الدخول إلى لوحة الإدارة بنجاح', 'success');
+            } else {
+                showToast('الرمز السري غير صحيح! الرمز الافتراضي هو 1234', 'error');
+            }
+        }
+
+        function logoutAdmin() {
+            isAdminUnlocked = false;
+            renderAdminDashboard();
+            showToast('تم قفل لوحة الإدارة', 'info');
+        }
+
+        function generateNewActivationCode() {
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const newCode = `VIP-${randomNum}`;
+            activationCodes.unshift({
+                code: newCode,
+                used: false,
+                usedBy: '',
+                createdAt: 'الآن'
+            });
+            saveData();
+            renderAdminDashboard();
+            showToast(`تم توليد كود جديد (${newCode}) بقيمة 1$ لمدة 30 يوماً!`, 'success');
+        }
+
+        function copyToClipboard(text, successMsg) {
+            const tempInput = document.createElement('input');
+            tempInput.value = text;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            try {
+                document.execCommand('copy');
+                showToast(successMsg || `تم نسخ: ${text}`, 'success');
+            } catch (err) {
+                showToast('تعذر النسخ التلقائي، يرجى النسخ يدوياً', 'error');
+            }
+            document.body.removeChild(tempInput);
+        }
+
+        function saveAdminSettings(e) {
+            e.preventDefault();
+            adminSettings.whishNumber = document.getElementById('admin-input-whish').value.trim();
+            adminSettings.adminWhatsapp = document.getElementById('admin-input-wa').value.trim();
+            adminSettings.shopName = document.getElementById('admin-input-shop-name').value.trim();
+            adminSettings.shopAddress = document.getElementById('admin-input-shop-address').value.trim();
+            adminSettings.shopHours = document.getElementById('admin-input-shop-hours').value.trim();
+            
+            saveData();
+            renderAll();
+            showToast('تم حفظ وتحديث بيانات Whish والمحل المعتمد بنجاح!', 'success');
+        }
+
+        function renderAdminDashboard() {
+            const loginBox = document.getElementById('admin-login-box');
+            const dashContent = document.getElementById('admin-dashboard-content');
+
+            if (!isAdminUnlocked) {
+                loginBox.classList.remove('hidden');
+                dashContent.classList.add('hidden');
+                return;
+            }
+
+            loginBox.classList.add('hidden');
+            dashContent.classList.remove('hidden');
+
+            // Stats
+            const usedCount = activationCodes.filter(c => c.used).length;
+            document.getElementById('admin-stat-revenue').textContent = `${usedCount}$`;
+            document.getElementById('admin-stat-used-codes').textContent = usedCount;
+            document.getElementById('admin-stat-total-orders').textContent = orders.length;
+
+            // Populate Settings Inputs (only if not currently focused)
+            if (document.activeElement.tagName !== 'INPUT') {
+                document.getElementById('admin-input-whish').value = adminSettings.whishNumber;
+                document.getElementById('admin-input-wa').value = adminSettings.adminWhatsapp;
+                document.getElementById('admin-input-shop-name').value = adminSettings.shopName;
+                document.getElementById('admin-input-shop-address').value = adminSettings.shopAddress;
+                document.getElementById('admin-input-shop-hours').value = adminSettings.shopHours;
+            }
+
+            // Render Codes List
+            const codesContainer = document.getElementById('admin-codes-list');
+            codesContainer.innerHTML = activationCodes.map(item => {
+                const waShareMsg = encodeURIComponent(`مرحباً كابتن، هذا كود تفعيل اشتراكك الشهري (1$) في تطبيق التوصيل لمدة 30 يوماً:\n*${item.code}*`);
+                return `
+                    <div class="p-3 rounded-xl border ${item.used ? 'bg-slate-50 border-slate-200 opacity-75' : 'bg-amber-50/40 border-amber-300/70'} flex items-center justify-between gap-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-extrabold text-sm tracking-wider text-slate-900" dir="ltr">${item.code}</span>
+                                ${item.used 
+                                    ? `<span class="text-[10px] font-bold bg-slate-200 text-slate-600 px-2 py-0.5 rounded">مستخدم (${item.usedBy})</span>`
+                                    : `<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded">متاح (1$)</span>`
+                                }
+                            </div>
+                            <span class="text-[10px] text-slate-400 block mt-0.5">تاريخ الإنشاء: ${item.createdAt}</span>
+                        </div>
+                        ${!item.used ? `
+                            <div class="flex items-center gap-1.5">
+                                <button type="button" onclick="copyToClipboard('${item.code}', 'تم نسخ الكود ${item.code}')" class="p-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs" title="نسخ الكود">
+                                    <i class="fa-regular fa-copy"></i>
+                                </button>
+                                <a href="https://wa.me/?text=${waShareMsg}" target="_blank" class="p-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs" title="إرسال الكود عبر واتساب">
+                                    <i class="fa-brands fa-whatsapp"></i>
+                                </a>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- Custom Toast Notification ---
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            let bgClass = 'bg-slate-800 text-white border-slate-700';
+            let icon = '<i class="fa-solid fa-circle-info text-amber-400"></i>';
+            
+            if (type === 'success') {
+                bgClass = 'bg-emerald-900 text-white border-emerald-700';
+                icon = '<i class="fa-solid fa-circle-check text-emerald-400"></i>';
+            } else if (type === 'error') {
+                bgClass = 'bg-rose-900 text-white border-rose-700';
+                icon = '<i class="fa-solid fa-circle-exclamation text-rose-400"></i>';
+            }
+
+            toast.className = `${bgClass} border px-4 py-3 rounded-xl shadow-xl text-xs sm:text-sm font-bold flex items-center gap-2.5 transition-all duration-300 transform translate-y-0 opacity-100`;
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // Start App
+        window.addEventListener('DOMContentLoaded', initApp);
+    </script>
+</body>
+</html>
