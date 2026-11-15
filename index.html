@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تطبيق التوصيل المحلي</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header>
+        <button class="admin-btn" onclick="openAdminLogin()">⚙️</button>
+        <h1>تطبيق التوصيل المحلي</h1>
+    </header>
+
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('customer')">واجهة الزبون</button>
+        <button class="nav-tab" onclick="switchTab('driver')">واجهة السائق</button>
+    </div>
+
+    <div class="container">
+        <!-- واجهة الزبون -->
+        <div id="customer-tab">
+            <div class="card">
+                <h3>طلب خدمة توصيل جديدة</h3>
+                <form id="order-form" onsubmit="submitOrder(event)">
+                    <div class="form-group">
+                        <label>نوع الخدمة</label>
+                        <select id="service-type">
+                            <option value="توصيل أغراض/طلبات">توصيل أغراض / طلبات (سوبرماركت، صيدلية، فرن...)</option>
+                            <option value="مشوار ركاب">مشوار ركاب</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>الوسيلة المفضلة</label>
+                        <select id="vehicle-pref">
+                            <option value="موتوسيكل">موتوسيكل (سريع للأغراض الخفيفة)</option>
+                            <option value="تكتوك">تكتوك (للأغراض الكبيرة والركاب)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>اسمك الكريم</label>
+                        <input type="text" id="cust-name" required placeholder="أدخل اسمك">
+                    </div>
+                    <div class="form-group">
+                        <label>رقم الهاتف (للتواصل)</label>
+                        <input type="tel" id="cust-phone" required placeholder="رقم الهاتف أو الواتساب">
+                    </div>
+                    <div class="form-group">
+                        <label>تفاصيل الطلب أو العنوان</label>
+                        <textarea id="cust-details" rows="3" required placeholder="اكتب تفاصيل طلبك أو من أين وإلى أين..."></textarea>
+                    </div>
+                    <button type="submit" class="btn">إرسال الطلب الآن</button>
+                </form>
+            </div>
+
+            <div class="card" id="my-orders-card">
+                <h3>حالة طلباتك النشطة</h3>
+                <div id="customer-orders-list">
+                    <p style="color: #666; font-size: 0.85rem;">لا توجد طلبات نشطة حالياً.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- واجهة السائق -->
+        <div id="driver-tab" class="hidden">
+            <div id="driver-register-section" class="card">
+                <h3>تسجيل حساب سائق جديد</h3>
+                <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">سجل بياناتك واحصل على فترة تجريبية مجانية لمدة 3 أيام!</p>
+                <form id="driver-reg-form" onsubmit="registerDriver(event)">
+                    <div class="form-group">
+                        <label>الاسم الكامل</label>
+                        <input type="text" id="reg-name" required placeholder="اسمك الثلاثي">
+                    </div>
+                    <div class="form-group">
+                        <label>رقم الواتساب</label>
+                        <input type="tel" id="reg-phone" required placeholder="رقم الهاتف">
+                    </div>
+                    <div class="form-group">
+                        <label>نوع المركبة</label>
+                        <select id="reg-vehicle">
+                            <option value="موتوسيكل">موتوسيكل</option>
+                            <option value="تكتوك">تكتوك</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>رقم اللوحة / وصف المركبة</label>
+                        <input type="text" id="reg-plate" required placeholder="مثال: تكتوك أزرق بدون لوحة">
+                    </div>
+                    <button type="submit" class="btn">تسجيل وبدء العمل</button>
+                </form>
+            </div>
+
+            <div id="driver-dashboard" class="hidden">
+                <div class="card" style="background: #e8f5e9; border: 1px solid #c8e6c9;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h4 id="driver-welcome-name">الكابتن</h4>
+                            <p style="font-size: 0.8rem; color: #555;" id="driver-sub-status">حالة الاشتراك: نشط (تجريبي)</p>
+                        </div>
+                        <button onclick="logoutDriver()" style="background: #d32f2f; color: white; border: none; padding: 5px 10px; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">خروج</button>
+                    </div>
+                </div>
+
+                <div class="card" id="subscription-card">
+                    <h3>تجديد الاشتراك الشهري (1$)</h3>
+                    <p style="font-size: 0.85rem; margin-bottom: 10px;">أبقِ حسابك مفعل لاستقبال طلبات الزبائن باستمرار.</p>
+                    <div class="alert alert-info">
+                        <strong>طرق الدفع المتاحة:</strong><br>
+                        1. تحويل 1$ عبر Whish Money على الرقم: <span id="whish-display" style="font-weight:bold; color:var(--primary);">03000000</span> ثم إرسال الإيصال واتساب.<br>
+                        2. الدفع نقداً عند <span id="shop-display" style="font-weight:bold;">محل حمدان صادق</span> لاستلام كود التفعيل.
+                    </div>
+                    <div class="form-group">
+                        <label>أدخل كود التفعيل (30 يوماً)</label>
+                        <input type="text" id="activation-code-input" placeholder="أدخل الكود هنا">
+                    </div>
+                    <button class="btn" onclick="activateSubscription()">تفعيل الاشتراك</button>
+                </div>
+
+                <div class="card">
+                    <h3>الطلبات المتاحة في المنطقة</h3>
+                    <div id="available-orders-list">
+                        <p style="color: #666; font-size: 0.85rem;">جاري البحث عن طلبات...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- لوحة الإدارة -->
+        <div id="admin-tab" class="hidden">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h3>لوحة التحكم الإدارية</h3>
+                    <button onclick="switchTab('customer')" style="background: #666; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">إغلاق</button>
+                </div>
+                
+                <div class="form-group">
+                    <label>توليد كود تفعيل جديد (1$ / 30 يوم)</label>
+                    <button class="btn" onclick="generateNewCode()">إنشاء كود تفعيل جديد</button>
+                    <div id="generated-code-box" style="margin-top: 10px; font-weight: bold; color: var(--primary);"></div>
+                </div>
+
+                <hr style="margin: 15px 0;">
+
+                <h4>السائقون المسجلون</h4>
+                <div id="admin-drivers-list" style="margin-top: 10px; max-height: 200px; overflow-y: auto;"></div>
+
+                <hr style="margin: 15px 0;">
+
+                <h4>إعدادات النظام</h4>
+                <div class="form-group">
+                    <label>رقم Whish Money</label>
+                    <input type="text" id="admin-whish" value="03000000">
+                </div>
+                <div class="form-group">
+                    <label>عنوان المحل المعتمد (للدفع النقدي)</label>
+                    <input type="text" id="admin-shop" value="محل حمدان صادق">
+                </div>
+                <button class="btn" onclick="saveAdminSettings()">حفظ الإعدادات</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
